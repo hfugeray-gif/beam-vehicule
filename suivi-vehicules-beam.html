@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Suivi véhicules — BEAM</title>
+<style>
+  :root {
+    --black: #000000;
+    --bordeaux: #8C1B1B;
+    --bordeaux-dark: #6e1515;
+    --green: #065945;
+    --green-dark: #044535;
+    --rose: #F2D1CE;
+    --grey-bg: #F5F4F2;
+    --grey-line: #DCD9D5;
+    --ink: #1A1816;
+    --ink-soft: #6B655F;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--grey-bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  header {
+    padding: 28px 32px 18px;
+    border-bottom: 3px solid var(--black);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  header .sub {
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  main {
+    padding: 24px 32px 60px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .fleet {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 36px;
+  }
+
+  @media (max-width: 720px) {
+    .fleet { grid-template-columns: 1fr; }
+    header { flex-direction: column; gap: 6px; }
+    main { padding: 20px 16px 48px; }
+  }
+
+  .card {
+    background: #fff;
+    border: 2px solid var(--black);
+    border-radius: 4px;
+    padding: 22px 22px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 8px;
+    height: 100%;
+    background: var(--stripe, var(--green));
+  }
+
+  .card.busy { --stripe: var(--bordeaux); }
+
+  .card .vlabel {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 4px 14px;
+  }
+
+  .card .vname {
+    font-size: 22px;
+    font-weight: 800;
+    margin: 0 0 16px 14px;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 6px 12px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 14px 14px;
+    background: var(--rose);
+    color: var(--bordeaux-dark);
+  }
+
+  .card:not(.busy) .status-pill {
+    background: #dff0ea;
+    color: var(--green-dark);
+  }
+
+  .status-pill .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: currentColor;
+  }
+
+  .status-detail {
+    margin: 0 0 20px 14px;
+    font-size: 15px;
+    color: var(--ink-soft);
+    min-height: 20px;
+  }
+
+  .action-btn {
+    display: block;
+    width: 100%;
+    padding: 18px;
+    font-size: 18px;
+    font-weight: 800;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #fff;
+    background: var(--green);
+    transition: transform 0.08s ease;
+  }
+
+  .card.busy .action-btn { background: var(--bordeaux); }
+
+  .action-btn:active { transform: scale(0.98); }
+
+  section.history {
+    background: #fff;
+    border: 2px solid var(--black);
+    border-radius: 4px;
+    padding: 22px;
+  }
+
+  section.history h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .history-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+
+  .history-controls select, .history-controls input {
+    padding: 9px 12px;
+    border: 1.5px solid var(--grey-line);
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+  }
+
+  .history-controls button {
+    margin-left: auto;
+    padding: 9px 16px;
+    border: 1.5px solid var(--black);
+    background: var(--black);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--grey-line);
+  }
+
+  th { color: var(--ink-soft); font-weight: 700; font-size: 12px; letter-spacing: 0.04em; }
+
+  tr.open td { color: var(--bordeaux-dark); font-weight: 600; }
+
+  .empty {
+    padding: 24px 4px;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .overlay.show { display: flex; }
+
+  .modal {
+    background: #fff;
+    border-radius: 6px;
+    padding: 26px;
+    width: 100%;
+    max-width: 420px;
+    border: 2px solid var(--black);
+  }
+
+  .modal h3 { margin: 0 0 6px; font-size: 19px; }
+  .modal p.hint { margin: 0 0 18px; color: var(--ink-soft); font-size: 14px; }
+
+  .modal label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--ink-soft);
+  }
+
+  .modal input, .modal textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1.5px solid var(--grey-line);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-family: inherit;
+  }
+
+  .modal textarea { resize: vertical; min-height: 70px; }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .modal-actions button {
+    flex: 1;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+  }
+
+  .modal-actions .cancel {
+    background: var(--grey-bg);
+    color: var(--ink);
+    border: 1.5px solid var(--grey-line);
+  }
+
+  .modal-actions .confirm {
+    background: var(--black);
+    color: #fff;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--black);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.25s ease;
+    pointer-events: none;
+    z-index: 20;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Suivi véhicules</h1>
+    <div class="sub">BEAM — service DSN</div>
+  </div>
+  <div class="sub" id="clock"></div>
+</header>
+
+<main>
+  <div class="fleet" id="fleet"></div>
+
+  <section class="history">
+    <h2>Historique</h2>
+    <div class="history-controls">
+      <select id="filterVehicule">
+        <option value="">Tous les véhicules</option>
+      </select>
+      <input type="date" id="filterDate">
+      <button id="exportBtn">Exporter en CSV</button>
+    </div>
+    <div id="historyWrap"></div>
+  </section>
+</main>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const VEHICLES = [
+    { id: "berlingo", name: "Berlingo - EB-881-CJ" },
+    { id: "boxer", name: "Peugeot Boxer - FH-084-RA" }
+  ];
+
+  const STORAGE_KEY = "beam_trajets_v1";
+
+  function loadTrips() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error("Erreur lecture stockage", e);
+      return [];
+    }
+  }
+
+  function saveTrips(trips) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+  }
+
+  let trips = loadTrips();
+
+  function currentTrip(vehicleName) {
+    return trips.find(t => t.vehicule === vehicleName && !t.retour) || null;
+  }
+
+  function fmtTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  function closeModal() {
+    document.getElementById("overlay").classList.remove("show");
+    document.getElementById("modal").innerHTML = "";
+  }
+
+  function openTakeModal(vehicleName) {
+    const modal = document.getElementById("modal");
+    modal.innerHTML = `
+      <h3>Prendre le véhicule</h3>
+      <p class="hint">${vehicleName}</p>
+      <label for="nameInput">Ton nom</label>
+      <input type="text" id="nameInput" placeholder="Prénom Nom" autofocus>
+      <div class="modal-actions">
+        <button class="cancel" id="cancelBtn">Annuler</button>
+        <button class="confirm" id="confirmBtn">Confirmer le départ</button>
+      </div>
+    `;
+    document.getElementById("overlay").classList.add("show");
+    document.getElementById("cancelBtn").onclick = closeModal;
+    document.getElementById("confirmBtn").onclick = () => {
+      const name = document.getElementById("nameInput").value.trim();
+      if (!name) { showToast("Merci d'indiquer un nom"); return; }
+      trips.push({
+        id: Date.now().toString(36),
+        vehicule: vehicleName,
+        emprunteur: name,
+        depart: new Date().toISOString(),
+        retour: null,
+        commentaire: ""
+      });
+      saveTrips(trips);
+      closeModal();
+      showToast("Départ enregistré — " + vehicleName);
+      render();
+    };
+  }
+
+  function openReturnModal(vehicleName) {
+    const trip = currentTrip(vehicleName);
+    const modal = document.getElementById("modal");
+    modal.innerHTML = `
+      <h3>Rendre le véhicule</h3>
+      <p class="hint">${vehicleName} — emprunté par ${trip ? trip.emprunteur : "?"}</p>
+      <label for="commentInput">Commentaire (optionnel)</label>
+      <textarea id="commentInput" placeholder="État du véhicule, niveau d'essence, incident..."></textarea>
+      <div class="modal-actions">
+        <button class="cancel" id="cancelBtn">Annuler</button>
+        <button class="confirm" id="confirmBtn">Confirmer le retour</button>
+      </div>
+    `;
+    document.getElementById("overlay").classList.add("show");
+    document.getElementById("cancelBtn").onclick = closeModal;
+    document.getElementById("confirmBtn").onclick = () => {
+      const comment = document.getElementById("commentInput").value.trim();
+      if (trip) {
+        trip.retour = new Date().toISOString();
+        trip.commentaire = comment;
+        saveTrips(trips);
+      }
+      closeModal();
+      showToast("Retour enregistré — " + vehicleName);
+      render();
+    };
+  }
+
+  function renderFleet() {
+    const wrap = document.getElementById("fleet");
+    wrap.innerHTML = "";
+    VEHICLES.forEach(v => {
+      const trip = currentTrip(v.name);
+      const busy = !!trip;
+      const card = document.createElement("div");
+      card.className = "card" + (busy ? " busy" : "");
+      card.innerHTML = `
+        <div class="vlabel">VÉHICULE DE SERVICE</div>
+        <div class="vname">${v.name}</div>
+        <div class="status-pill"><span class="dot"></span>${busy ? "En cours d'utilisation" : "Disponible"}</div>
+        <div class="status-detail">${busy ? `${trip.emprunteur} — depuis ${fmtTime(trip.depart)}` : "Prêt à être emprunté"}</div>
+        <button class="action-btn">${busy ? "Je rends le véhicule" : "Je prends le véhicule"}</button>
+      `;
+      card.querySelector(".action-btn").onclick = () => {
+        busy ? openReturnModal(v.name) : openTakeModal(v.name);
+      };
+      wrap.appendChild(card);
+    });
+  }
+
+  function renderHistory() {
+    const filterV = document.getElementById("filterVehicule").value;
+    const filterD = document.getElementById("filterDate").value;
+
+    let rows = [...trips].sort((a, b) => new Date(b.depart) - new Date(a.depart));
+
+    if (filterV) rows = rows.filter(t => t.vehicule === filterV);
+    if (filterD) rows = rows.filter(t => t.depart.slice(0, 10) === filterD);
+
+    const wrap = document.getElementById("historyWrap");
+    if (rows.length === 0) {
+      wrap.innerHTML = `<div class="empty">Aucun trajet enregistré pour ce filtre.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Véhicule</th><th>Emprunteur</th><th>Départ</th><th>Retour</th><th>Commentaire</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map(t => `
+            <tr class="${t.retour ? "" : "open"}">
+              <td>${t.vehicule}</td>
+              <td>${t.emprunteur}</td>
+              <td>${fmtTime(t.depart)}</td>
+              <td>${t.retour ? fmtTime(t.retour) : "En cours"}</td>
+              <td>${t.commentaire || ""}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function populateFilterOptions() {
+    const sel = document.getElementById("filterVehicule");
+    const current = sel.value;
+    sel.innerHTML = `<option value="">Tous les véhicules</option>` +
+      VEHICLES.map(v => `<option value="${v.name}">${v.name}</option>`).join("");
+    sel.value = current;
+  }
+
+  function exportCSV() {
+    if (trips.length === 0) { showToast("Rien à exporter"); return; }
+    const header = ["Vehicule", "Emprunteur", "Depart", "Retour", "Commentaire"];
+    const lines = [header.join(";")];
+    trips.forEach(t => {
+      lines.push([
+        t.vehicule,
+        t.emprunteur,
+        t.depart,
+        t.retour || "",
+        (t.commentaire || "").replace(/;/g, ",").replace(/\n/g, " ")
+      ].join(";"));
+    });
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "suivi-vehicules-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Export CSV lancé");
+  }
+
+  function updateClock() {
+    document.getElementById("clock").textContent =
+      new Date().toLocaleString("fr-FR", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function render() {
+    renderFleet();
+    populateFilterOptions();
+    renderHistory();
+  }
+
+  document.getElementById("filterVehicule").addEventListener("change", renderHistory);
+  document.getElementById("filterDate").addEventListener("change", renderHistory);
+  document.getElementById("exportBtn").addEventListener("click", exportCSV);
+  document.getElementById("overlay").addEventListener("click", (e) => {
+    if (e.target.id === "overlay") closeModal();
+  });
+
+  updateClock();
+  setInterval(updateClock, 30000);
+  render();
+</script>
+
+</body>
+</html>
